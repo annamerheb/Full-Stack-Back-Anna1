@@ -16,12 +16,15 @@ class ReviewSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
-        # empêcher un 2e avis sur le même produit par le même user à la création
         request = self.context.get("request")
         if request and request.method == "POST":
             product = attrs.get("product")
+            # 1 seul avis par user (déjà garanti par Meta + validation côté view)
             if product and Review.objects.filter(product=product, user=request.user).exists():
                 raise serializers.ValidationError("Vous avez déjà laissé un avis pour ce produit.")
+            # Empêcher d’évaluer son propre produit si Product.owner est défini
+            if product and getattr(product, "owner_id", None) == getattr(request.user, "id", None):
+                raise serializers.ValidationError("Vous ne pouvez pas évaluer votre propre produit.")
         return attrs
 
 

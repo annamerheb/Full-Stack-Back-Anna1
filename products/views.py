@@ -1,8 +1,12 @@
 from django.db.models import Avg, Count, FloatField
 from django.db.models.functions import Coalesce
 from django_filters.rest_framework import DjangoFilterBackend
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 
 from rest_framework import viewsets, permissions, filters, response, decorators, status
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.parsers import JSONParser
 from rest_framework.renderers import JSONRenderer
 from rest_framework_xml.parsers import XMLParser
@@ -20,6 +24,10 @@ from .models import Product, Review
 from .serializers import ProductSerializer, ReviewSerializer
 from .permissions import IsOwnerOrReadOnly
 
+class ReviewPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 @extend_schema_view(
     list=extend_schema(
@@ -183,6 +191,27 @@ class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.select_related("product", "user").all()
     serializer_class = ReviewSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
+
+    # Pagination + ordering + XML support
+    pagination_class = ReviewPagination
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ["created_at", "rating"]
+    ordering = ["-created_at"]
+    parser_classes = [JSONParser, XMLParser]
+    renderer_classes = [JSONRenderer, XMLRenderer]
+
+    # Throttling léger sur la création
+    throttle_classes = [ScopedRateThrottle]
+
+    def get_throttles(self):
+        # Applique un scope spécifique uniquement sur create
+        if getattr(self, "action", None) == "create":
+            for t in self.throttle_classes:
+                if t is ScopedRateThrottle:
+                    inst = ScopedRateThrottle()
+                    inst.scope = "review-create"
+                    return [inst]
+        return super().get_throttles()
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)

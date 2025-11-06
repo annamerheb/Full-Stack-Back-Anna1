@@ -52,6 +52,13 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
+    "DEFAULT_THROTTLE_CLASSES": (
+        "rest_framework.throttling.ScopedRateThrottle",
+    ),
+    "DEFAULT_THROTTLE_RATES": {
+        # Limite la création d’avis (exemple : 10 créations) / heure)
+        "review-create": "10/hour",
+    },
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.AllowAny",
     ],
